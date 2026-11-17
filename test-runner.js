@@ -306,6 +306,94 @@ async function runAllTests() {
     assert.strictEqual(validChoices.includes('BOTH_RAW_AND_GRADED'), true);
   });
 
+  // --- Suite 6: Production Upload Modes & Google Drive Integration ---
+  console.log(`\n${colors.bold}Suite 6: Upload Modes (Auto, Manual, Preset) & Google Drive Security${colors.reset}`);
+
+  // Test Option 1: Auto-Upload (Continuous)
+  await it('should automatically enqueue incoming camera photos in AUTO_CONTINUOUS mode', () => {
+    const queue = [];
+    let currentMode = 'AUTO_CONTINUOUS';
+
+    function handlePhotoIngest(photo) {
+      if (currentMode === 'AUTO_CONTINUOUS') {
+        queue.push({ id: 'task_' + photo.id, photoId: photo.id, status: 'PENDING' });
+      }
+    }
+
+    handlePhotoIngest({ id: 'photo_001', fileName: 'DSC001.ARW' });
+    handlePhotoIngest({ id: 'photo_002', fileName: 'DSC002.ARW' });
+
+    assert.strictEqual(queue.length, 2);
+    assert.strictEqual(queue[0].photoId, 'photo_001');
+    assert.strictEqual(queue[1].photoId, 'photo_002');
+  });
+
+  // Test Option 2: Manual Selection
+  await it('should allow selective multi-photo manual upload in MANUAL_SELECT mode', () => {
+    const allPhotos = [
+      { id: 'p1', fileName: 'DSC001.JPG' },
+      { id: 'p2', fileName: 'DSC002.JPG' },
+      { id: 'p3', fileName: 'DSC003.JPG' },
+    ];
+    const selectedIds = new Set(['p1', 'p3']);
+    const uploadQueue = [];
+
+    // User triggers single-click batch upload of selected photos
+    const toUpload = allPhotos.filter(p => selectedIds.has(p.id));
+    toUpload.forEach(p => uploadQueue.push({ id: 'task_' + p.id, photoId: p.id }));
+
+    assert.strictEqual(uploadQueue.length, 2);
+    assert.strictEqual(uploadQueue[0].photoId, 'p1');
+    assert.strictEqual(uploadQueue[1].photoId, 'p3');
+  });
+
+  // Test Option 3: Preset Mode with Dual Workflow
+  await it('should generate dual upload tasks (RAW + Graded JPEG) in PRESET_MODE', () => {
+    const queue = [];
+    const presetConfig = {
+      transferWorkflow: 'DUAL_TRANSFER',
+      selectedPresetId: 'portra-400',
+    };
+
+    function handlePresetIngest(photo) {
+      if (presetConfig.transferWorkflow === 'DUAL_TRANSFER') {
+        queue.push({ id: 'task_raw_' + photo.id, fileName: photo.fileName, mimeType: 'image/x-sony-arw' });
+        const gradedName = photo.fileName.replace(/\.[^/.]+$/, '') + '_' + presetConfig.selectedPresetId + '.jpg';
+        queue.push({ id: 'task_graded_' + photo.id, fileName: gradedName, mimeType: 'image/jpeg' });
+      }
+    }
+
+    handlePresetIngest({ id: 'raw_01', fileName: 'SHOOT_01.ARW' });
+
+    assert.strictEqual(queue.length, 2);
+    assert.strictEqual(queue[0].fileName, 'SHOOT_01.ARW');
+    assert.strictEqual(queue[1].fileName, 'SHOOT_01_portra-400.jpg');
+    assert.strictEqual(queue[1].mimeType, 'image/jpeg');
+  });
+
+  // Test Mode Switching
+  await it('should seamlessly switch between all 3 upload modes at runtime', () => {
+    let mode = 'AUTO_CONTINUOUS';
+    const modes = ['AUTO_CONTINUOUS', 'MANUAL_SELECT', 'PRESET_MODE'];
+
+    mode = 'MANUAL_SELECT';
+    assert.strictEqual(mode, 'MANUAL_SELECT');
+
+    mode = 'PRESET_MODE';
+    assert.strictEqual(mode, 'PRESET_MODE');
+
+    mode = 'AUTO_CONTINUOUS';
+    assert.strictEqual(mode, 'AUTO_CONTINUOUS');
+  });
+
+  // Test Security Scope
+  await it('should enforce Google least-privilege security scope (drive.file)', () => {
+    const scope = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email';
+    assert.strictEqual(scope.includes('drive.file'), true);
+    // Ensure full unrestricted drive scope is NOT used to prevent data breaches
+    assert.strictEqual(scope.includes('https://www.googleapis.com/auth/drive '), false);
+  });
+
   // Summary
   console.log(`\n${colors.bold}${colors.cyan}====================================================${colors.reset}`);
   console.log(

@@ -185,3 +185,4 @@ CREATE TABLE upload_queue (
 - **Local Storage Isolation:** Images and credentials stay in app-sandboxed directories (`Context.getExternalFilesDir()` / `Documents`).
 - **Token Protection:** Secure encryption of OAuth refresh tokens using Android KeyStore and iOS Keychain.
 - **Drive Scope Minimization:** Restricted to `drive.file` scope so the app can only view and manage files created by AeroShutter, preserving user privacy over existing cloud files.
+

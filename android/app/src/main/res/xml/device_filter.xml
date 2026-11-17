@@ -21,3 +21,4 @@
     <!-- Generic MTP / PTP Device -->
     <usb-device class="6" />
 </resources>
+

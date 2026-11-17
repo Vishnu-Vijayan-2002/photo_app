@@ -5,6 +5,7 @@
 
 import { CameraInfo, ConnectionMode, ConnectionStatus } from '../../types/camera';
 import { Photo } from '../../types/photo';
+import { NativeModules } from 'react-native';
 import { mockCameraService } from './MockCameraService';
 import { ftpServerService } from './FtpServerService';
 import { usbTetherService } from './UsbTetherService';
@@ -19,7 +20,7 @@ export type CameraStatusListener = (info: CameraInfo) => void;
 
 export class CameraManager {
   private static instance: CameraManager;
-  private currentMode: ConnectionMode = 'MOCK_SIMULATOR';
+  private currentMode: ConnectionMode = 'USB_OTG';
   private cameraInfo: CameraInfo;
   private photoListeners: Set<PhotoIngestedListener> = new Set();
   private statusListeners: Set<CameraStatusListener> = new Set();
@@ -32,8 +33,18 @@ export class CameraManager {
   }
 
   constructor() {
-    this.cameraInfo = mockCameraService.getCameraInfo();
+    this.cameraInfo = {
+      id: 'cam_usb',
+      name: 'No Camera Connected',
+      brand: 'Generic',
+      model: 'Connect camera via USB-C OTG cable or Wi-Fi',
+      mode: 'USB_OTG',
+      status: 'DISCONNECTED',
+      firmwareVersion: 'Direct Tether',
+    };
     this.setupListeners();
+    // Check if a real camera is already connected via USB
+    this.scanAndConnectUsb().catch(() => {});
   }
 
   private setupListeners() {
@@ -56,7 +67,15 @@ export class CameraManager {
     // FTP Server Ingestion
     ftpServerService.setOnPhotoReceived(async (meta) => {
       const { isRaw, format } = photoStorageManager.getRawFormat(meta.fileName);
-      const thumbnail = photoStorageManager.generatePlaceholderThumbnail(meta.fileName, isRaw, format);
+      let thumbnail = '';
+      try {
+        if (NativeModules.NativeStorageModule?.extractRawThumbnail && meta.localPath) {
+          thumbnail = await NativeModules.NativeStorageModule.extractRawThumbnail(meta.localPath);
+        }
+      } catch {}
+      if (!thumbnail) {
+        thumbnail = photoStorageManager.generatePlaceholderThumbnail(meta.fileName, isRaw, format);
+      }
       await this.handleIncomingPhoto({
         fileName: meta.fileName,
         localPath: meta.localPath,
@@ -74,7 +93,15 @@ export class CameraManager {
     // USB Tether Ingestion
     usbTetherService.setOnPhotoReceived(async (meta) => {
       const { isRaw, format } = photoStorageManager.getRawFormat(meta.fileName);
-      const thumbnail = photoStorageManager.generatePlaceholderThumbnail(meta.fileName, isRaw, format);
+      let thumbnail = '';
+      try {
+        if (NativeModules.NativeStorageModule?.extractRawThumbnail && meta.localPath) {
+          thumbnail = await NativeModules.NativeStorageModule.extractRawThumbnail(meta.localPath);
+        }
+      } catch {}
+      if (!thumbnail) {
+        thumbnail = photoStorageManager.generatePlaceholderThumbnail(meta.fileName, isRaw, format);
+      }
       await this.handleIncomingPhoto({
         fileName: meta.fileName,
         localPath: meta.localPath,
@@ -132,13 +159,16 @@ export class CameraManager {
         break;
       case 'USB_OTG':
         this.cameraInfo = {
-          id: 'cam_usb_001',
-          name: 'USB-C Tethered Camera',
+          id: 'cam_usb',
+          name: 'No Camera Connected',
           brand: 'Generic',
-          model: 'PTP/MTP Device',
+          model: 'Connect camera via USB-C OTG cable or Wi-Fi',
           mode: 'USB_OTG',
           status: 'DISCONNECTED',
+          batteryLevel: undefined,
+          firmwareVersion: 'Direct Tether',
         };
+        this.scanAndConnectUsb().catch(() => {});
         break;
       case 'HOT_FOLDER':
         this.cameraInfo = {
@@ -153,6 +183,57 @@ export class CameraManager {
     }
 
     this.notifyStatusListeners();
+  }
+
+  public async scanAndConnectUsb(): Promise<boolean> {
+    const devices = await usbTetherService.scanForCameras();
+    if (devices.length > 0) {
+      const dev = devices[0];
+      const granted = await usbTetherService.requestUsbPermission(dev.deviceId);
+      if (granted) {
+        await usbTetherService.startPtpSession(dev.deviceId);
+        const battery = await usbTetherService.getBatteryLevel();
+        const brand = (dev.brand as any) || 'Generic';
+        this.cameraInfo = {
+          id: `cam_usb_${dev.deviceId}`,
+          name: dev.productName || `${brand} Camera`,
+          brand,
+          model: dev.productName || 'Direct PTP',
+          mode: 'USB_OTG',
+          status: 'CONNECTED',
+          batteryLevel: battery !== null ? battery : undefined,
+          firmwareVersion: 'Direct USB',
+        };
+        this.notifyStatusListeners();
+        return true;
+      } else {
+        this.cameraInfo = {
+          id: `cam_usb_${dev.deviceId}`,
+          name: dev.productName || 'USB Camera',
+          brand: (dev.brand as any) || 'Generic',
+          model: 'Permission Required',
+          mode: 'USB_OTG',
+          status: 'DISCONNECTED',
+          batteryLevel: undefined,
+          firmwareVersion: 'Direct USB',
+        };
+        this.notifyStatusListeners();
+        return false;
+      }
+    } else {
+      this.cameraInfo = {
+        id: 'cam_usb',
+        name: 'No Camera Connected',
+        brand: 'Generic',
+        model: 'Connect camera via USB-C OTG cable or Wi-Fi',
+        mode: 'USB_OTG',
+        status: 'DISCONNECTED',
+        batteryLevel: undefined,
+        firmwareVersion: 'Direct Tether',
+      };
+      this.notifyStatusListeners();
+      return false;
+    }
   }
 
   public async connect(): Promise<boolean> {
@@ -170,19 +251,7 @@ export class CameraManager {
         this.cameraInfo.port = ftpServerService.getConfig().port;
         break;
       case 'USB_OTG':
-        const devices = await usbTetherService.scanForCameras();
-        if (devices.length > 0) {
-          const granted = await usbTetherService.requestUsbPermission(devices[0].deviceId);
-          if (granted) {
-            await usbTetherService.startPtpSession(devices[0].deviceId);
-            this.cameraInfo.status = 'CONNECTED';
-            this.cameraInfo.name = devices[0].productName || 'USB Camera';
-          }
-        } else {
-          // Keep connected state for demo/tether simulation if no physical device is plugged
-          this.cameraInfo.status = 'CONNECTED';
-          this.cameraInfo.name = 'USB-C Mirrorless Camera';
-        }
+        await this.scanAndConnectUsb();
         break;
       case 'HOT_FOLDER':
         await localWatcherService.startWatching();
@@ -196,8 +265,8 @@ export class CameraManager {
 
   public async disconnect(): Promise<void> {
     switch (this.currentMode) {
-      case 'MOCK_SIMULATOR':
-        await mockCameraService.disconnect();
+      case 'USB_OTG':
+        await usbTetherService.disconnect();
         break;
       case 'FTP_WIFI':
         await ftpServerService.stopServer();
@@ -279,3 +348,4 @@ export class CameraManager {
 }
 
 export const cameraManager = CameraManager.getInstance();
+

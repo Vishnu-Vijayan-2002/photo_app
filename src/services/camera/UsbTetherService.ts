@@ -22,21 +22,25 @@ export class UsbTetherService {
   }
 
   constructor() {
-    if (UsbTetherModule) {
-      this.eventEmitter = new NativeEventEmitter(UsbTetherModule);
-      this.eventEmitter.addListener('USB_PHOTO_CAPTURED', (event) => {
-        if (this.onPhotoCallback) {
-          this.onPhotoCallback(event);
-        }
-      });
+    try {
+      if (UsbTetherModule) {
+        this.eventEmitter = new NativeEventEmitter(UsbTetherModule);
+        this.eventEmitter.addListener('USB_PHOTO_CAPTURED', (event) => {
+          if (this.onPhotoCallback) {
+            this.onPhotoCallback(event);
+          }
+        });
 
-      this.eventEmitter.addListener('USB_DEVICE_ATTACHED', (device) => {
-        this.connectedDevice = device;
-      });
+        this.eventEmitter.addListener('USB_DEVICE_ATTACHED', (device) => {
+          this.connectedDevice = device;
+        });
 
-      this.eventEmitter.addListener('USB_DEVICE_DETACHED', () => {
-        this.connectedDevice = null;
-      });
+        this.eventEmitter.addListener('USB_DEVICE_DETACHED', () => {
+          this.connectedDevice = null;
+        });
+      }
+    } catch (e) {
+      console.warn('Could not initialize native USB event emitter:', e);
     }
   }
 
@@ -78,6 +82,17 @@ export class UsbTetherService {
     return false;
   }
 
+  public async getBatteryLevel(): Promise<number | null> {
+    if (Platform.OS === 'android' && UsbTetherModule && UsbTetherModule.getBatteryLevel) {
+      try {
+        return await UsbTetherModule.getBatteryLevel();
+      } catch (err) {
+        console.warn('Battery reading error:', err);
+      }
+    }
+    return null;
+  }
+
   public async triggerShutter(): Promise<boolean> {
     if (Platform.OS === 'android' && UsbTetherModule) {
       try {
@@ -92,6 +107,18 @@ export class UsbTetherService {
   public getConnectedDevice(): UsbDeviceInfo | null {
     return this.connectedDevice;
   }
+
+  public async disconnect(): Promise<void> {
+    if (Platform.OS === 'android' && UsbTetherModule && UsbTetherModule.closeSession) {
+      try {
+        await UsbTetherModule.closeSession();
+      } catch (err) {
+        console.warn('Error closing USB PTP session:', err);
+      }
+    }
+    this.connectedDevice = null;
+  }
 }
 
 export const usbTetherService = UsbTetherService.getInstance();
+

@@ -20,7 +20,7 @@ interface PhotoDetailModalProps {
 
 export const PhotoDetailModal: React.FC<PhotoDetailModalProps> = ({ photo, visible, onClose, onOpenEditor }) => {
   const { theme } = useApp();
-  const { retryTask } = useUpload();
+  const { retryTask, enqueueSelectedPhotos } = useUpload();
 
   if (!photo) return null;
 
@@ -35,21 +35,34 @@ export const PhotoDetailModal: React.FC<PhotoDetailModalProps> = ({ photo, visib
           )}
         </View>
 
-        {/* Quick Action to open Color Grade Studio */}
-        {onOpenEditor ? (
-          <View style={styles.editorActionRow}>
+        {/* Action Row: Manual 1-Click Upload & Presets */}
+        <View style={styles.actionRow}>
+          {photo.uploadStatus !== 'COMPLETED' && photo.uploadStatus !== 'UPLOADING' ? (
             <Button
-              title="🎨 Presets & Color Grade"
+              title="☁️ Upload to Google Drive"
               variant="primary"
+              size="sm"
+              onPress={async () => {
+                await enqueueSelectedPhotos([photo]);
+                onClose();
+              }}
+              style={styles.actionBtn}
+            />
+          ) : null}
+
+          {onOpenEditor ? (
+            <Button
+              title="🎨 Presets & Grade"
+              variant="secondary"
               size="sm"
               onPress={() => {
                 onClose();
                 onOpenEditor(photo);
               }}
-              style={styles.editorBtn}
+              style={styles.actionBtn}
             />
-          </View>
-        ) : null}
+          ) : null}
+        </View>
 
         <View style={styles.badgesRow}>
           <Badge
@@ -145,11 +158,13 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  editorActionRow: {
+  actionRow: {
+    flexDirection: 'row',
+    gap: 8,
     marginVertical: 10,
   },
-  editorBtn: {
-    width: '100%',
+  actionBtn: {
+    flex: 1,
   },
   badgesRow: {
     flexDirection: 'row',

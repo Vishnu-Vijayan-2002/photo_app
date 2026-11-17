@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useApp } from '../../context/AppContext';
 import { useCamera } from '../../context/CameraContext';
 import { Badge } from '../common/Badge';
+import { Icon } from '../common/Icon';
 
 export const CameraStatusHUD: React.FC = () => {
   const { theme } = useApp();
@@ -27,11 +28,24 @@ export const CameraStatusHUD: React.FC = () => {
   };
 
   const getBrandBadge = () => {
+    if (cameraInfo.status === 'DISCONNECTED') {
+      return (
+        <View
+          style={[
+            styles.brandBadge,
+            { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: theme.colors.border },
+          ]}
+        >
+          <Icon name="camera" size={14} color={theme.colors.textMuted} />
+        </View>
+      );
+    }
+
     const brandColors: Record<string, string> = {
-      Sony: '#E53935',
-      Canon: '#D32F2F',
-      Nikon: '#FFB800',
-      Fujifilm: '#00E676',
+      Sony: '#E11D48',
+      Canon: '#DC2626',
+      Nikon: '#EAB308',
+      Fujifilm: '#10B981',
       Generic: theme.colors.primary,
     };
     return (
@@ -67,46 +81,23 @@ export const CameraStatusHUD: React.FC = () => {
 
       <View style={[styles.bottomRow, { borderTopColor: theme.colors.border }]}>
         <View style={styles.telemetryGroup}>
-          {cameraInfo.batteryLevel !== undefined ? (
-            <View style={styles.telemetryItem}>
-              <Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>BATTERY</Text>
-              <Text style={[styles.telemetryValue, { color: theme.colors.success }]}>{cameraInfo.batteryLevel}%</Text>
-            </View>
-          ) : null}
+          <View style={styles.telemetryItem}>
+            <Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>BATTERY</Text>
+            <Text
+              style={[
+                styles.telemetryValue,
+                { color: cameraInfo.batteryLevel !== undefined ? theme.colors.success : theme.colors.textMuted },
+              ]}
+            >
+              {cameraInfo.batteryLevel !== undefined ? `${cameraInfo.batteryLevel}%` : '--'}
+            </Text>
+          </View>
 
           {cameraInfo.port ? (
             <View style={styles.telemetryItem}>
               <Text style={[styles.telemetryLabel, { color: theme.colors.textMuted }]}>PORT</Text>
               <Text style={[styles.telemetryValue, { color: theme.colors.primary }]}>{cameraInfo.port}</Text>
             </View>
-          ) : null}
-
-          {cameraInfo.mode === 'MOCK_SIMULATOR' ? (
-            <TouchableOpacity
-              onPress={toggleAutoCapture}
-              style={[
-                styles.burstToggle,
-                {
-                  backgroundColor: isAutoCapturing ? theme.colors.warningMuted : theme.colors.surfaceActive,
-                  borderColor: isAutoCapturing ? theme.colors.warning : theme.colors.border,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.burstDot,
-                  { backgroundColor: isAutoCapturing ? theme.colors.warning : theme.colors.textMuted },
-                ]}
-              />
-              <Text
-                style={[
-                  styles.burstText,
-                  { color: isAutoCapturing ? theme.colors.warning : theme.colors.textSecondary },
-                ]}
-              >
-                {isAutoCapturing ? 'Bursting (3s)' : 'Sim Burst'}
-              </Text>
-            </TouchableOpacity>
           ) : null}
         </View>
 
@@ -232,3 +223,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+

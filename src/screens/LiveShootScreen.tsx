@@ -1,6 +1,7 @@
 /**
  * AeroShutter Live Shoot Screen
  * Primary tethering HUD for real-time photo streaming and cloud uploads.
+ * Includes instant 1-tap switching between Auto-Upload, Manual Select, and Preset Mode.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -16,6 +17,8 @@ import { UsbConnectionCard } from '../components/camera/UsbConnectionCard';
 import { SessionSelector } from '../components/session/SessionSelector';
 import { PhotoGrid } from '../components/gallery/PhotoGrid';
 import { PhotoDetailModal } from '../components/gallery/PhotoDetailModal';
+import { UploadModeSelector } from '../components/upload/UploadModeSelector';
+import { PresetConfigModal } from '../components/upload/PresetConfigModal';
 import { Button } from '../components/common/Button';
 import { Photo } from '../types/photo';
 import { photoRepo } from '../database/photoRepository';
@@ -29,6 +32,7 @@ export const LiveShootScreen: React.FC = () => {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [editingPhoto, setEditingPhoto] = useState<Photo | null>(null);
+  const [presetModalVisible, setPresetModalVisible] = useState(false);
 
   const loadPhotos = async () => {
     if (activeSession) {
@@ -63,21 +67,16 @@ export const LiveShootScreen: React.FC = () => {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Header
-        title="AeroShutter"
+        title="TETHERFLOW"
         subtitle="Real-time Camera Tether & Instant Drive Sync"
-        rightAction={
-          <Button
-            title="● Shoot"
-            variant="primary"
-            size="sm"
-            onPress={triggerShutter}
-          />
-        }
       />
 
       <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
         <SessionSelector />
         <CameraStatusHUD />
+
+        {/* 3 Upload Workflow Modes (Auto, Manual, Preset) */}
+        <UploadModeSelector onOpenPresetConfig={() => setPresetModalVisible(true)} />
 
         {connectionMode === 'FTP_WIFI' ? <FtpServerConfigCard /> : null}
         {connectionMode === 'USB_OTG' ? <UsbConnectionCard /> : null}
@@ -99,6 +98,11 @@ export const LiveShootScreen: React.FC = () => {
         onClose={() => setSelectedPhoto(null)}
         onOpenEditor={(p) => setEditingPhoto(p)}
       />
+
+      <PresetConfigModal
+        visible={presetModalVisible}
+        onClose={() => setPresetModalVisible(false)}
+      />
     </View>
   );
 };
@@ -109,9 +113,10 @@ const styles = StyleSheet.create({
   },
   scroll: {
     flex: 1,
+    paddingHorizontal: 16,
   },
   galleryHeader: {
     marginTop: 10,
-    minHeight: 300,
+    marginBottom: 40,
   },
 });

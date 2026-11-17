@@ -38,3 +38,4 @@ describe('AeroShutter Upload Queue Manager', () => {
     expect(state.isPaused).toBe(false);
   });
 });
+

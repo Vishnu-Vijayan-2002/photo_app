@@ -56,6 +56,7 @@ export interface UsbDeviceInfo {
   deviceName: string;
   manufacturerName?: string;
   productName?: string;
+  brand?: string;
   serialNumber?: string;
   hasPermission: boolean;
 }
@@ -65,3 +66,4 @@ export interface CameraEvent {
   timestamp: number;
   payload: any;
 }
+

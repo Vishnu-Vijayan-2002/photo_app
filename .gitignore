@@ -1,1 +1,30 @@
-node_modules
+
+# Dependencies
+node_modules/
+
+# Gradle cache
+.gradle/
+**/.gradle/
+
+# Android build files
+android/build/
+android/app/build/
+android/local.properties
+
+# Build outputs
+build/
+dist/
+
+# Environment
+.env
+.env.*
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+*.log
+
+# Temporary screenshots
+screen_*.png

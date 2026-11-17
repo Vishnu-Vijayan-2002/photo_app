@@ -26,3 +26,4 @@ describe('AeroShutter EXIF & Storage Telemetry', () => {
     expect(exif.iso).toBeGreaterThan(0);
   });
 });
+

@@ -23,7 +23,7 @@ export interface ColorGradingAdjustments {
   fade: number;           // 0 to 100 (matte film lift)
 }
 
-export type PresetCategory = 'Cinematic' | 'Portrait' | 'Film' | 'Monochrome' | 'Landscape' | 'Custom';
+export type PresetCategory = 'Cinematic' | 'Portrait' | 'Film' | 'Monochrome' | 'Landscape' | 'Commercial' | 'Custom';
 
 export interface PhotoPreset {
   id: string;
@@ -37,7 +37,7 @@ export interface PhotoPreset {
   createdAt: number;
 }
 
-export type TransferChoice = 'RAW_ORIGINAL' | 'GRADED_PRESET' | 'BOTH_RAW_AND_GRADED';
+export type TransferChoice = 'RAW_ORIGINAL' | 'GRADED_PRESET' | 'BOTH_RAW_AND_GRADED' | 'EXPORT_SIDECAR';
 
 export interface GradedPhotoExport {
   originalPhotoId: string;
@@ -47,3 +47,4 @@ export interface GradedPhotoExport {
   exportMimeType: string;
   transferChoice: TransferChoice;
 }
+

@@ -58,3 +58,4 @@ export class NetworkMonitor {
 }
 
 export const networkMonitor = NetworkMonitor.getInstance();
+

@@ -9,9 +9,11 @@ import { photoStorageManager } from '../../services/storage/PhotoStorageManager'
 interface PhotoCardProps {
   photo: Photo;
   onPress: () => void;
+  isSelected?: boolean;
+  isSelectable?: boolean;
 }
 
-export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onPress }) => {
+export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onPress, isSelected = false, isSelectable = false }) => {
   const { theme } = useApp();
 
   const getStatusBadge = () => {
@@ -23,8 +25,9 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onPress }) => {
       case 'FAILED':
         return <Badge label="Failed" variant="error" size="sm" />;
       case 'PENDING':
-      default:
         return <Badge label="Queued" variant="warning" size="sm" />;
+      default:
+        return null;
     }
   };
 
@@ -32,22 +35,45 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onPress }) => {
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={onPress}
-      style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+      style={[
+        styles.card,
+        {
+          backgroundColor: theme.colors.card,
+          borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+          borderWidth: isSelected ? 2 : 1,
+        },
+      ]}
     >
       <View style={styles.imageContainer}>
         {photo.thumbnailPath ? (
           <Image source={{ uri: photo.thumbnailPath }} style={styles.thumbnail} resizeMode="cover" />
+        ) : photo.localPath ? (
+          <Image source={{ uri: photo.localPath }} style={styles.thumbnail} resizeMode="cover" />
         ) : (
           <View style={[styles.placeholder, { backgroundColor: theme.colors.surfaceActive }]} />
         )}
 
-        <View style={styles.badgeTopLeft}>
-          <Badge
-            label={photo.isRaw ? `RAW • ${photo.rawFormat}` : 'JPEG'}
-            variant={photo.isRaw ? 'raw' : 'jpeg'}
-            size="sm"
-          />
-        </View>
+        {isSelectable ? (
+          <View
+            style={[
+              styles.checkboxBadge,
+              {
+                backgroundColor: isSelected ? theme.colors.primary : 'rgba(0,0,0,0.5)',
+                borderColor: isSelected ? theme.colors.primary : '#FFFFFF',
+              },
+            ]}
+          >
+            <Text style={styles.checkboxText}>{isSelected ? '✓' : ''}</Text>
+          </View>
+        ) : (
+          <View style={styles.badgeTopLeft}>
+            <Badge
+              label={photo.isRaw ? `RAW • ${photo.rawFormat}` : 'JPEG'}
+              variant={photo.isRaw ? 'raw' : 'jpeg'}
+              size="sm"
+            />
+          </View>
+        )}
 
         <View style={styles.badgeTopRight}>{getStatusBadge()}</View>
 
@@ -98,6 +124,22 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  checkboxBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   badgeTopLeft: {
     position: 'absolute',
     top: 6,
@@ -132,3 +174,4 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
+

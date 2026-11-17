@@ -55,3 +55,4 @@ describe('Google Drive Cloud Integration', () => {
     expect(lastProgress).toBe(100);
   });
 });
+

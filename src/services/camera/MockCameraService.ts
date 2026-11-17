@@ -179,3 +179,4 @@ export class MockCameraService {
 }
 
 export const mockCameraService = MockCameraService.getInstance();
+

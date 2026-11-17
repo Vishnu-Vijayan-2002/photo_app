@@ -16,3 +16,4 @@
 # Keep PTP / USB models
 -keep class com.aeroshutter.camera.** { *; }
 -keep class com.aeroshutter.ftp.** { *; }
+

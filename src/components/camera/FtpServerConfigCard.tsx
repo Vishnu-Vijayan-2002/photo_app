@@ -50,7 +50,7 @@ export const FtpServerConfigCard: React.FC = () => {
 
       <View style={[styles.tipBox, { backgroundColor: theme.colors.primaryMuted, borderColor: theme.colors.primary }]}>
         <Text style={[styles.tipText, { color: theme.colors.primary }]}>
-          💡 Tip: On Sony cameras, navigate to Network → FTP Transfer Func. → Server Setting 1. On Canon, go to
+          PRO TIP: On Sony cameras, navigate to Network → FTP Transfer Func. → Server Setting 1. On Canon, go to
           Communication Settings → FTP Transfer.
         </Text>
       </View>
@@ -112,3 +112,4 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
+

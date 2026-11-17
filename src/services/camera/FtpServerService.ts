@@ -34,15 +34,19 @@ export class FtpServerService {
   }
 
   constructor() {
-    if (EmbeddedFtpServerModule) {
-      this.eventEmitter = new NativeEventEmitter(EmbeddedFtpServerModule);
-      this.eventEmitter.addListener('FTP_PHOTO_UPLOADED', (event) => {
-        this.config.photosReceived++;
-        this.config.totalTransferredBytes += event.fileSize || 0;
-        if (this.onPhotoReceivedCallback) {
-          this.onPhotoReceivedCallback(event);
-        }
-      });
+    try {
+      if (EmbeddedFtpServerModule) {
+        this.eventEmitter = new NativeEventEmitter(EmbeddedFtpServerModule);
+        this.eventEmitter.addListener('FTP_PHOTO_UPLOADED', (event) => {
+          this.config.photosReceived++;
+          this.config.totalTransferredBytes += event.fileSize || 0;
+          if (this.onPhotoReceivedCallback) {
+            this.onPhotoReceivedCallback(event);
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Could not initialize native FTP event emitter:', e);
     }
   }
 
@@ -92,3 +96,4 @@ export class FtpServerService {
 }
 
 export const ftpServerService = FtpServerService.getInstance();
+

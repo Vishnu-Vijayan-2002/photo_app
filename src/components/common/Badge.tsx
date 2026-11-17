@@ -39,9 +39,10 @@ export const Badge: React.FC<BadgeProps> = ({ label, variant = 'primary', size =
         styles.badge,
         {
           backgroundColor: bg,
-          paddingVertical: size === 'sm' ? 2 : 4,
-          paddingHorizontal: size === 'sm' ? 6 : 8,
+          paddingVertical: size === 'sm' ? 4 : 6,
+          paddingHorizontal: size === 'sm' ? 10 : 14,
           borderRadius: 4,
+          minWidth: size === 'sm' ? 62 : 78,
         },
       ]}
     >
@@ -53,6 +54,7 @@ export const Badge: React.FC<BadgeProps> = ({ label, variant = 'primary', size =
             fontSize: size === 'sm' ? 10 : 12,
           },
         ]}
+        numberOfLines={1}
       >
         {label}
       </Text>
@@ -72,3 +74,4 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 });
+

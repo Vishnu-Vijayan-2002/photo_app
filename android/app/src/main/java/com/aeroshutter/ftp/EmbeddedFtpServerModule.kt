@@ -30,6 +30,9 @@ class EmbeddedFtpServerModule(private val reactContext: ReactApplicationContext)
             val ip = server.start()
             ftpServer = server
 
+            // Start Android Foreground Service with ongoing notification
+            FtpForegroundService.start(reactContext, port, ip)
+
             val map = Arguments.createMap().apply {
                 putBoolean("isRunning", true)
                 putString("ipAddress", ip)
@@ -46,6 +49,7 @@ class EmbeddedFtpServerModule(private val reactContext: ReactApplicationContext)
         try {
             ftpServer?.stop()
             ftpServer = null
+            FtpForegroundService.stop(reactContext)
             promise.resolve(true)
         } catch (e: Exception) {
             promise.reject("FTP_STOP_ERROR", e.message)
@@ -62,9 +66,20 @@ class EmbeddedFtpServerModule(private val reactContext: ReactApplicationContext)
         promise.resolve(map)
     }
 
+    @ReactMethod
+    fun addListener(eventName: String) {
+        // Required for RN NativeEventEmitter
+    }
+
+    @ReactMethod
+    fun removeListeners(count: Int) {
+        // Required for RN NativeEventEmitter
+    }
+
     private fun sendEvent(eventName: String, params: WritableMap?) {
         reactContext
             .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit(eventName, params)
     }
 }
+

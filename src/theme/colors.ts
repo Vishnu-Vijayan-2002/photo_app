@@ -4,51 +4,51 @@
  */
 
 export const darkPalette = {
-  // Backgrounds
-  background: '#0D0F12',
-  surface: '#15191F',
-  surfaceHover: '#1E232B',
-  surfaceActive: '#262D38',
-  elevated: '#1A1F27',
-  card: '#161B22',
-  overlay: 'rgba(0, 0, 0, 0.75)',
+  // Backgrounds - Studio Deep Obsidian & Precision Matte
+  background: '#090A0C',
+  surface: '#111317',
+  surfaceHover: '#181A20',
+  surfaceActive: '#1F222A',
+  elevated: '#15171C',
+  card: '#131519',
+  overlay: 'rgba(0, 0, 0, 0.80)',
 
-  // Borders
-  border: '#252C37',
-  borderHighlight: '#3B4554',
+  // Borders - Precision hairline dividers
+  border: '#21252D',
+  borderHighlight: '#323742',
 
-  // Primary Accent (Aero Cyan / Electric Blue)
-  primary: '#00D1FF',
-  primaryMuted: 'rgba(0, 209, 255, 0.15)',
-  primaryHover: '#33DAFF',
+  // Primary Accent (TetherFlow Electric Cyan)
+  primary: '#00D2FF',
+  primaryMuted: 'rgba(0, 210, 255, 0.12)',
+  primaryHover: '#29DAFF',
 
-  // Secondary Accent (Shutter Gold)
-  secondary: '#FFB800',
-  secondaryMuted: 'rgba(255, 184, 0, 0.15)',
+  // Secondary Accent (TetherFlow Warm Amber)
+  secondary: '#FF8A00',
+  secondaryMuted: 'rgba(255, 138, 0, 0.12)',
 
   // Status Colors
-  success: '#00E676',
-  successMuted: 'rgba(0, 230, 118, 0.15)',
-  warning: '#FF9100',
-  warningMuted: 'rgba(255, 145, 0, 0.15)',
-  error: '#FF3D71',
-  errorMuted: 'rgba(255, 61, 113, 0.15)',
-  info: '#2979FF',
-  infoMuted: 'rgba(41, 121, 255, 0.15)',
+  success: '#10B981',
+  successMuted: 'rgba(16, 185, 129, 0.12)',
+  warning: '#F59E0B',
+  warningMuted: 'rgba(245, 158, 11, 0.12)',
+  error: '#EF4444',
+  errorMuted: 'rgba(239, 68, 68, 0.12)',
+  info: '#3B82F6',
+  infoMuted: 'rgba(59, 130, 246, 0.12)',
 
   // Text Colors
-  textPrimary: '#FFFFFF',
-  textSecondary: '#9AA4B2',
-  textMuted: '#626D7D',
-  textInverse: '#0D0F12',
+  textPrimary: '#F4F4F6',
+  textSecondary: '#A1A1AA',
+  textMuted: '#71717A',
+  textInverse: '#090A0C',
 
   // Media badges
-  rawBadge: '#9C27B0',
-  jpegBadge: '#009688',
-  cameraBrandSony: '#E53935',
-  cameraBrandCanon: '#D32F2F',
-  cameraBrandNikon: '#FFEB3B',
-  cameraBrandFuji: '#4CAF50',
+  rawBadge: '#A855F7',
+  jpegBadge: '#06B6D4',
+  cameraBrandSony: '#E11D48',
+  cameraBrandCanon: '#DC2626',
+  cameraBrandNikon: '#EAB308',
+  cameraBrandFuji: '#10B981',
 };
 
 export const lightPalette = {
@@ -100,3 +100,4 @@ export const lightPalette = {
 };
 
 export type ThemeColors = typeof darkPalette;
+

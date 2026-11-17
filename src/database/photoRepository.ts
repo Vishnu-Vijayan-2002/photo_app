@@ -99,6 +99,11 @@ export class PhotoRepository {
     return photos;
   }
 
+  async updatePhotoThumbnail(id: string, thumbnailPath: string): Promise<void> {
+    const db = dbManager.getDriver();
+    await db.executeSql('UPDATE photos SET thumbnail_path = ? WHERE id = ?', [thumbnailPath, id]);
+  }
+
   async deletePhoto(id: string): Promise<void> {
     const db = dbManager.getDriver();
     await db.executeSql('DELETE FROM photos WHERE id = ?', [id]);
@@ -107,16 +112,16 @@ export class PhotoRepository {
 
   private async mapRowToPhoto(row: any): Promise<Photo> {
     const db = dbManager.getDriver();
-    const queueRes = await db.executeSql('SELECT status, progress_bytes, total_bytes, drive_file_id FROM upload_queue WHERE photo_id = ? LIMIT 1', [row.id]);
+    const queueRes = await db.executeSql('SELECT status, progress_bytes, file_size, drive_file_id FROM upload_queue WHERE photo_id = ? LIMIT 1', [row.id]);
     
-    let uploadStatus: Photo['uploadStatus'] = 'PENDING';
+    let uploadStatus: Photo['uploadStatus'] = undefined;
     let uploadProgress = 0;
     let driveFileId: string | undefined;
 
     if (queueRes.rows.length > 0) {
       const q = queueRes.rows[0];
       uploadStatus = q.status;
-      uploadProgress = q.total_bytes > 0 ? Math.round((q.progress_bytes / q.total_bytes) * 100) : 0;
+      uploadProgress = q.file_size > 0 ? Math.round((q.progress_bytes / q.file_size) * 100) : 0;
       driveFileId = q.drive_file_id || undefined;
     }
 
@@ -153,3 +158,4 @@ export class PhotoRepository {
 }
 
 export const photoRepo = new PhotoRepository();
+

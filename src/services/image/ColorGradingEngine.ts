@@ -196,6 +196,70 @@ export class ColorGradingEngine {
   }
 
   /**
+   * Export adjustments to standard Adobe Lightroom / Camera Raw XMP Sidecar XML
+   */
+  public static exportToXmp(adj: ColorGradingAdjustments, presetName: string): string {
+    return `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+    xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"
+    crs:PresetName="${presetName}"
+    crs:ProcessVersion="15.4"
+    crs:Exposure2012="${(adj.exposure / 20).toFixed(2)}"
+    crs:Contrast2012="${adj.contrast}"
+    crs:Highlights2012="${adj.highlights}"
+    crs:Shadows2012="${adj.shadows}"
+    crs:Whites2012="${adj.whites}"
+    crs:Blacks2012="${adj.blacks}"
+    crs:Temperature="${adj.temperature}"
+    crs:Tint="${adj.tint}"
+    crs:Saturation="${adj.saturation}"
+    crs:Vibrance="${adj.vibrance}"
+    crs:Clarity2012="${adj.clarity}">
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`;
+  }
+
+  /**
+   * Export adjustments as standard 3D LUT (.CUBE) color transform file
+   */
+  public static exportToCubeLut(adj: ColorGradingAdjustments, title = 'TetherFlow_Grade'): string {
+    const size = 17;
+    let cube = `TITLE "${title}"\n`;
+    cube += `LUT_3D_SIZE ${size}\n`;
+    cube += `DOMAIN_MIN 0.0 0.0 0.0\n`;
+    cube += `DOMAIN_MAX 1.0 1.0 1.0\n\n`;
+
+    const expFactor = 1 + (adj.exposure / 100) * 0.5;
+    const sat = Math.max(0, 1 + (adj.saturation / 100));
+
+    for (let b = 0; b < size; b++) {
+      for (let g = 0; g < size; g++) {
+        for (let r = 0; r < size; r++) {
+          let red = r / (size - 1);
+          let green = g / (size - 1);
+          let blue = b / (size - 1);
+
+          red = Math.min(1.0, Math.max(0.0, red * expFactor));
+          green = Math.min(1.0, Math.max(0.0, green * expFactor));
+          blue = Math.min(1.0, Math.max(0.0, blue * expFactor));
+
+          const gray = 0.299 * red + 0.587 * green + 0.114 * blue;
+          red = Math.min(1.0, Math.max(0.0, gray + sat * (red - gray)));
+          green = Math.min(1.0, Math.max(0.0, gray + sat * (green - gray)));
+          blue = Math.min(1.0, Math.max(0.0, gray + sat * (blue - gray)));
+
+          cube += `${red.toFixed(6)} ${green.toFixed(6)} ${blue.toFixed(6)}\n`;
+        }
+      }
+    }
+    return cube;
+  }
+
+  /**
    * Import preset from JSON string
    */
   public static importFromJson(jsonString: string): PhotoPreset {
@@ -212,3 +276,4 @@ export class ColorGradingEngine {
     };
   }
 }
+

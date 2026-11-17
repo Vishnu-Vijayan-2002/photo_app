@@ -6,7 +6,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { CameraInfo, ConnectionMode } from '../types/camera';
 import { cameraManager } from '../services/camera/CameraManager';
-import { mockCameraService } from '../services/camera/MockCameraService';
 
 interface CameraContextType {
   cameraInfo: CameraInfo;
@@ -26,12 +25,16 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [cameraInfo, setCameraInfo] = useState<CameraInfo>(cameraManager.getCameraInfo());
   const [connectionMode, setMode] = useState<ConnectionMode>(cameraManager.getConnectionMode());
   const [isAutoCapturing, setIsAutoCapturing] = useState(false);
+  const autoIntervalRef = React.useRef<any>(null);
 
   useEffect(() => {
     const unsub = cameraManager.subscribeToStatus((info) => {
       setCameraInfo(info);
     });
-    return unsub;
+    return () => {
+      unsub();
+      if (autoIntervalRef.current) clearInterval(autoIntervalRef.current);
+    };
   }, []);
 
   const setConnectionMode = async (mode: ConnectionMode) => {
@@ -45,7 +48,7 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const disconnect = async () => {
     if (isAutoCapturing) {
-      mockCameraService.stopAutoCapture();
+      if (autoIntervalRef.current) clearInterval(autoIntervalRef.current);
       setIsAutoCapturing(false);
     }
     await cameraManager.disconnect();
@@ -56,18 +59,19 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const toggleAutoCapture = () => {
-    if (mockCameraService.isAutoCapturing()) {
-      mockCameraService.stopAutoCapture();
+    if (isAutoCapturing) {
+      if (autoIntervalRef.current) clearInterval(autoIntervalRef.current);
       setIsAutoCapturing(false);
     } else {
-      mockCameraService.startAutoCapture(3500);
       setIsAutoCapturing(true);
+      autoIntervalRef.current = setInterval(() => {
+        triggerShutter();
+      }, 4000);
     }
   };
 
-  const setMockProfile = (profile: 'Sony' | 'Canon' | 'Nikon') => {
-    mockCameraService.setProfile(profile);
-    setCameraInfo(mockCameraService.getCameraInfo());
+  const setMockProfile = (_profile: 'Sony' | 'Canon' | 'Nikon') => {
+    // Deprecated: Hardware auto-detects brand
   };
 
   return (
@@ -96,3 +100,4 @@ export const useCamera = (): CameraContextType => {
   }
   return context;
 };
+

@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Platform } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { useUpload } from '../context/UploadContext';
+import { Icon, IconName } from '../components/common/Icon';
 import { LiveShootScreen } from '../screens/LiveShootScreen';
 import { GalleryScreen } from '../screens/GalleryScreen';
 import { SessionsScreen } from '../screens/SessionsScreen';
@@ -20,16 +21,16 @@ type TabName = 'Tether' | 'Gallery' | 'Studio' | 'Sessions' | 'Cloud' | 'Setting
 interface TabItem {
   name: TabName;
   label: string;
-  icon: string;
+  icon: IconName;
 }
 
 const TABS: TabItem[] = [
-  { name: 'Tether', label: 'Tether', icon: '📷' },
-  { name: 'Gallery', label: 'Gallery', icon: '🖼️' },
-  { name: 'Studio', label: 'Presets', icon: '🎨' },
-  { name: 'Sessions', label: 'Sessions', icon: '📁' },
-  { name: 'Cloud', label: 'Cloud Sync', icon: '☁️' },
-  { name: 'Settings', label: 'Settings', icon: '⚙️' },
+  { name: 'Tether', label: 'Tether', icon: 'camera' },
+  { name: 'Gallery', label: 'Gallery', icon: 'gallery' },
+  { name: 'Studio', label: 'Presets', icon: 'presets' },
+  { name: 'Sessions', label: 'Sessions', icon: 'sessions' },
+  { name: 'Cloud', label: 'Cloud Sync', icon: 'cloud' },
+  { name: 'Settings', label: 'Settings', icon: 'settings' },
 ];
 
 export const AppNavigator: React.FC = () => {
@@ -64,16 +65,17 @@ export const AppNavigator: React.FC = () => {
         {TABS.map((tab) => {
           const isActive = activeTab === tab.name;
           const showBadge = tab.name === 'Cloud' && queueState.totalPendingCount > 0;
+          const itemColor = isActive ? theme.colors.primary : theme.colors.textMuted;
 
           return (
             <TouchableOpacity
               key={tab.name}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
               onPress={() => setActiveTab(tab.name)}
               style={styles.tabItem}
             >
               <View style={styles.iconContainer}>
-                <Text style={styles.tabIcon}>{tab.icon}</Text>
+                <Icon name={tab.icon} size={21} color={itemColor} />
                 {showBadge ? (
                   <View style={[styles.badge, { backgroundColor: theme.colors.primary }]}>
                     <Text style={styles.badgeText}>
@@ -86,13 +88,14 @@ export const AppNavigator: React.FC = () => {
                 style={[
                   styles.tabLabel,
                   {
-                    color: isActive ? theme.colors.primary : theme.colors.textSecondary,
+                    color: itemColor,
                     fontWeight: isActive ? '700' : '500',
                   },
                 ]}
               >
                 {tab.label}
               </Text>
+              {isActive ? <View style={[styles.activeIndicator, { backgroundColor: theme.colors.primary }]} /> : null}
             </TouchableOpacity>
           );
         })}
@@ -129,7 +132,13 @@ const styles = StyleSheet.create({
   },
   tabLabel: {
     fontSize: 10,
-    marginTop: 2,
+    marginTop: 3,
+  },
+  activeIndicator: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 3,
   },
   badge: {
     position: 'absolute',

@@ -37,3 +37,4 @@ describe('AeroShutter Mock Camera Service', () => {
     expect(shot.exif.make).toBe('Nikon');
   });
 });
+

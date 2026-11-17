@@ -1,9 +1,13 @@
 /**
  * AeroShutter Upload Queue Manager
  * Coordinates background cloud uploads, concurrency limits, speed metrics, and retries.
+ * Implements 3 Flexible Modes:
+ *   1. AUTO_CONTINUOUS: Automatic real-time upload on capture.
+ *   2. MANUAL_SELECT: Manual gallery multi-selection and 1-tap upload.
+ *   3. PRESET_MODE: Pre-configured preset workflow (RAW only, Graded JPEG, Dual Transfer).
  */
 
-import { UploadTask, UploadQueueState, UploadSpeedMetrics } from '../../types/upload';
+import { UploadTask, UploadQueueState, UploadSpeedMetrics, UploadMode, UploadPresetConfig } from '../../types/upload';
 import { Photo } from '../../types/photo';
 import { uploadQueueRepo } from '../../database/uploadQueueRepository';
 import { sessionRepo } from '../../database/sessionRepository';
@@ -19,6 +23,17 @@ export class UploadQueueManager {
   private isPaused = false;
   private wifiOnly = false;
   private maxConcurrency = 2;
+  private currentMode: UploadMode = 'AUTO_CONTINUOUS';
+  private presetConfig: UploadPresetConfig = {
+    targetFolderPattern: 'SESSION_NAME',
+    transferWorkflow: 'DUAL_TRANSFER',
+    selectedPresetId: 'portra-400',
+    wifiOnly: false,
+    maxConcurrency: 2,
+    autoCreateSessionFolder: true,
+    deleteLocalAfterUpload: false,
+  };
+
   private activeTasks: Map<string, UploadTask> = new Map();
   private speedMetrics: UploadSpeedMetrics = {
     currentBytesPerSecond: 0,
@@ -42,16 +57,33 @@ export class UploadQueueManager {
   }
 
   private setupListeners() {
-    // Automatically enqueue newly ingested photos
+    // Ingest newly captured photos immediately into the upload queue
     cameraManager.subscribeToPhotos(async (photo: Photo) => {
-      await this.enqueuePhoto(photo);
+      try {
+        if (this.currentMode === 'PRESET_MODE') {
+          await this.enqueuePresetPhoto(photo);
+        } else {
+          // Immediately enqueue and process upload
+          await this.enqueuePhoto(photo);
+        }
+      } catch (err) {
+        console.error('Failed to auto-enqueue captured photo:', err);
+      }
+    });
+
+    // Auto-resume queue when Google Account becomes authenticated
+    googleAuthService.subscribe((acc) => {
+      if (acc && acc.accessToken) {
+        this.processQueue();
+      }
     });
 
     // Monitor network changes
     networkMonitor.subscribe((net) => {
+      const activeWifiOnly = this.currentMode === 'PRESET_MODE' ? this.presetConfig.wifiOnly : this.wifiOnly;
       if (!net.isConnected) {
         this.pause();
-      } else if (this.wifiOnly && !net.isWifi) {
+      } else if (activeWifiOnly && !net.isWifi) {
         this.pause();
       } else if (this.isPaused) {
         this.resume();
@@ -64,15 +96,87 @@ export class UploadQueueManager {
     }, 1000);
   }
 
+  public getUploadMode(): UploadMode {
+    return this.currentMode;
+  }
+
+  public setUploadMode(mode: UploadMode): void {
+    this.currentMode = mode;
+    this.notify();
+  }
+
+  public getPresetConfig(): UploadPresetConfig {
+    return { ...this.presetConfig };
+  }
+
+  public updatePresetConfig(config: Partial<UploadPresetConfig>): void {
+    this.presetConfig = { ...this.presetConfig, ...config };
+    if (config.maxConcurrency !== undefined) {
+      this.maxConcurrency = config.maxConcurrency;
+    }
+    this.notify();
+  }
+
+  /**
+   * Mode 3: Preset Workflow Enqueue
+   */
+  public async enqueuePresetPhoto(photo: Photo): Promise<void> {
+    const workflow = this.presetConfig.transferWorkflow;
+
+    if (workflow === 'RAW_ONLY') {
+      await this.enqueuePhoto(photo);
+    } else if (workflow === 'GRADED_ONLY') {
+      const gradedFileName = photo.fileName.replace(/\.[^/.]+$/, '') + `_${this.presetConfig.selectedPresetId}.jpg`;
+      await this.enqueuePhoto({
+        ...photo,
+        id: photo.id + '_graded',
+        fileName: gradedFileName,
+        mimeType: 'image/jpeg',
+      });
+    } else if (workflow === 'DUAL_TRANSFER') {
+      // Dual Upload: Both original RAW and Graded JPEG
+      await this.enqueuePhoto(photo);
+      const gradedFileName = photo.fileName.replace(/\.[^/.]+$/, '') + `_${this.presetConfig.selectedPresetId}.jpg`;
+      await this.enqueuePhoto({
+        ...photo,
+        id: photo.id + '_graded',
+        fileName: gradedFileName,
+        mimeType: 'image/jpeg',
+      });
+    }
+  }
+
+  /**
+   * Mode 2: Manual Selection Enqueue
+   */
+  public async enqueueSelectedPhotos(photos: Photo[]): Promise<UploadTask[]> {
+    const tasks: UploadTask[] = [];
+    for (const photo of photos) {
+      const task = await this.enqueuePhoto(photo);
+      tasks.push(task);
+    }
+    this.processQueue();
+    return tasks;
+  }
+
   public async enqueuePhoto(photo: Photo): Promise<UploadTask> {
     const session = await sessionRepo.getSessionById(photo.sessionId);
     let driveFolderId = session?.driveFolderId;
 
     if (!driveFolderId) {
-      const folder = await googleDriveService.createSessionFolder(session?.name || 'Shoot');
-      driveFolderId = folder.id;
-      if (session) {
-        await sessionRepo.updateDriveFolder(session.id, folder.id, folder.webViewLink || '');
+      if (googleAuthService.isAuthenticated()) {
+        try {
+          const folderName = session?.name || 'Studio Session';
+          const folder = await googleDriveService.createSessionFolder(folderName);
+          driveFolderId = folder.id;
+          if (session) {
+            await sessionRepo.updateDriveFolder(session.id, folder.id, folder.webViewLink || '');
+          }
+        } catch {
+          driveFolderId = 'gdir_session_' + (session?.id || 'default');
+        }
+      } else {
+        driveFolderId = 'gdir_session_' + (session?.id || 'default');
       }
     }
 
@@ -103,7 +207,8 @@ export class UploadQueueManager {
     }
 
     const net = networkMonitor.getState();
-    if (!net.isConnected || (this.wifiOnly && !net.isWifi)) {
+    const activeWifiOnly = this.currentMode === 'PRESET_MODE' ? this.presetConfig.wifiOnly : this.wifiOnly;
+    if (!net.isConnected || (activeWifiOnly && !net.isWifi)) {
       return;
     }
 
@@ -116,6 +221,24 @@ export class UploadQueueManager {
 
         const candidate = pending[0];
         if (this.activeTasks.has(candidate.id)) break;
+
+        // If candidate's driveFolderId is a deferred placeholder, resolve it now with the live Google Account
+        if (candidate.driveFolderId.startsWith('gdir_')) {
+          try {
+            const session = await sessionRepo.getSessionById(candidate.sessionId);
+            let folderId = session?.driveFolderId;
+            if (!folderId || folderId.startsWith('gdir_')) {
+              const folder = await googleDriveService.createSessionFolder(session?.name || 'Studio Session');
+              folderId = folder.id;
+              if (session) {
+                await sessionRepo.updateDriveFolder(session.id, folder.id, folder.webViewLink || '');
+              }
+            }
+            candidate.driveFolderId = folderId;
+          } catch {
+            // Proceed to upload
+          }
+        }
 
         this.startTaskUpload(candidate);
       }
@@ -144,14 +267,22 @@ export class UploadQueueManager {
       });
 
       await uploadQueueRepo.markCompleted(task.id, result.driveFileId);
-      task.status = 'COMPLETED';
-      task.driveFileId = result.driveFileId;
-    } catch (err: any) {
-      console.warn('Upload error for task', task.id, err);
-      const msg = err.message || 'Network upload failed';
-      await uploadQueueRepo.markFailed(task.id, msg);
-      task.status = 'FAILED';
-      task.errorMessage = msg;
+
+      // Refresh Google Drive storage quota in background after successful upload
+      googleAuthService.refreshStorageQuota();
+    } catch (error: any) {
+      if (error?.message === 'UPLOAD_ABORTED') {
+        task.status = 'PAUSED';
+      } else {
+        const nextRetry = task.retryCount + 1;
+        if (nextRetry >= task.maxRetries) {
+          await uploadQueueRepo.markFailed(task.id, error?.message || 'Upload failed');
+        } else {
+          task.retryCount = nextRetry;
+          task.status = 'PENDING';
+          await uploadQueueRepo.updateTaskPending(task.id, task.progressBytes, nextRetry);
+        }
+      }
     } finally {
       this.activeTasks.delete(task.id);
       this.notify();
@@ -161,63 +292,54 @@ export class UploadQueueManager {
 
   public pause(): void {
     this.isPaused = true;
-    this.activeTasks.forEach((task) => {
-      resumableUploader.abortUpload(task.id);
-    });
+    for (const [taskId] of this.activeTasks) {
+      resumableUploader.abortUpload(taskId);
+    }
     this.activeTasks.clear();
-    uploadQueueRepo.pauseAll();
     this.notify();
   }
 
   public resume(): void {
     this.isPaused = false;
-    uploadQueueRepo.resumeAll().then(() => {
-      this.processQueue();
-    });
     this.notify();
+    this.processQueue();
   }
 
   public setWifiOnly(enabled: boolean): void {
     this.wifiOnly = enabled;
-    const net = networkMonitor.getState();
-    if (this.wifiOnly && !net.isWifi) {
-      this.pause();
-    } else if (this.isPaused && (!this.wifiOnly || net.isWifi)) {
-      this.resume();
-    }
-  }
-
-  public isWifiOnly(): boolean {
-    return this.wifiOnly;
-  }
-
-  public async retryAllFailed(): Promise<void> {
-    await uploadQueueRepo.retryAllFailed();
-    this.processQueue();
     this.notify();
   }
 
   public async retryTask(taskId: string): Promise<void> {
     await uploadQueueRepo.retryTask(taskId);
-    this.processQueue();
     this.notify();
+    this.processQueue();
+  }
+
+  public async retryAllFailed(): Promise<void> {
+    await uploadQueueRepo.retryAllFailed();
+    this.notify();
+    this.processQueue();
   }
 
   private calculateSpeedMetrics() {
     const now = Date.now();
     const elapsedSeconds = (now - this.lastSpeedCheckTime) / 1000;
+    if (elapsedSeconds <= 0) return;
 
     let currentTotalBytes = 0;
-    this.activeTasks.forEach((t) => {
-      currentTotalBytes += t.progressBytes;
-    });
-
-    if (elapsedSeconds > 0) {
-      const bytesDiff = Math.max(0, currentTotalBytes - this.lastTransferredBytes);
-      const bps = bytesDiff / elapsedSeconds;
-      this.speedMetrics.currentBytesPerSecond = Math.round(bps);
-      this.speedMetrics.activeUploadsCount = this.activeTasks.size;
+    for (const [, task] of this.activeTasks) {
+      currentTotalBytes += task.progressBytes;
     }
+
+    const deltaBytes = Math.max(0, currentTotalBytes - this.lastTransferredBytes);
+    const instantSpeed = Math.round(deltaBytes / elapsedSeconds);
+
+    this.speedMetrics.currentBytesPerSecond = instantSpeed;
+    this.speedMetrics.averageBytesPerSecond = Math.round(
+      this.speedMetrics.averageBytesPerSecond * 0.7 + instantSpeed * 0.3
+    );
+    this.speedMetrics.activeUploadsCount = this.activeTasks.size;
 
     this.lastTransferredBytes = currentTotalBytes;
     this.lastSpeedCheckTime = now;
@@ -238,6 +360,8 @@ export class UploadQueueManager {
       totalPendingCount: pending.length,
       totalCompletedCount: completed.length,
       totalFailedCount: failed.length,
+      currentMode: this.currentMode,
+      presetConfig: { ...this.presetConfig },
     };
   }
 

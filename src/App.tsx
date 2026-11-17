@@ -43,7 +43,7 @@ export default function App(): React.JSX.Element {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#00D1FF" />
-        <Text style={styles.loadingText}>Initializing AeroShutter Engine...</Text>
+        <Text style={styles.loadingText}>Initializing TetherFlow Engine...</Text>
       </View>
     );
   }
@@ -75,3 +75,4 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
 });
+

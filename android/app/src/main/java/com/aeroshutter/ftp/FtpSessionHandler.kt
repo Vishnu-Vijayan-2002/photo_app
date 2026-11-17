@@ -12,6 +12,12 @@ class FtpSessionHandler(
     private val onPhotoReceived: (File) -> Unit
 ) : Runnable {
 
+    companion object {
+        private val ALLOWED_EXTENSIONS = setOf(
+            "JPG", "JPEG", "CR2", "CR3", "ARW", "NEF", "RAF", "DNG", "RW2", "TIFF", "TIF"
+        )
+    }
+
     private var passiveServerSocket: ServerSocket? = null
     private var isBinaryMode = true
 
@@ -98,22 +104,39 @@ class FtpSessionHandler(
     }
 
     private fun handleStor(writer: BufferedWriter, rawFileName: String) {
+        val cleanFileName = File(rawFileName).name
+        val ext = cleanFileName.substringAfterLast(".", "").uppercase()
+
+        if (ext.isEmpty() || ext !in ALLOWED_EXTENSIONS) {
+            sendResponse(writer, "553 File format not allowed. Only camera RAW and JPEG formats accepted.")
+            return
+        }
+
         val pasvServer = passiveServerSocket
         if (pasvServer == null) {
             sendResponse(writer, "425 Use PASV first")
             return
         }
 
-        sendResponse(writer, "150 Opening BINARY mode data connection for $rawFileName")
+        sendResponse(writer, "150 Opening BINARY mode data connection for $cleanFileName")
 
         var dataSocket: Socket? = null
         try {
             dataSocket = pasvServer.accept()
             val input = dataSocket.getInputStream()
 
-            val cleanFileName = File(rawFileName).name
             if (!storageDir.exists()) storageDir.mkdirs()
-            val destFile = File(storageDir, cleanFileName)
+            var destFile = File(storageDir, cleanFileName)
+            if (destFile.exists()) {
+                val baseName = cleanFileName.substringBeforeLast(".")
+                val fileExt = cleanFileName.substringAfterLast(".", "")
+                var counter = 1
+                while (destFile.exists()) {
+                    destFile = File(storageDir, "${baseName}_$counter.$fileExt")
+                    counter++
+                }
+            }
+
             val fos = FileOutputStream(destFile)
 
             val buffer = ByteArray(32768)
@@ -146,3 +169,4 @@ class FtpSessionHandler(
         writer.flush()
     }
 }
+

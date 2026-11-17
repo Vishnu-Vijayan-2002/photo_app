@@ -13,28 +13,22 @@ interface ModeOption {
 
 const MODES: ModeOption[] = [
   {
-    mode: 'FTP_WIFI',
-    title: 'Wi-Fi / Hotspot FTP',
-    subtitle: 'Direct auto-transfer for Sony, Canon, Nikon & Fuji',
-    tag: 'WIRELESS',
-  },
-  {
     mode: 'USB_OTG',
     title: 'USB-C Cable Tether',
     subtitle: 'Ultra high-speed PTP transfer via OTG cable',
     tag: 'WIRED',
   },
   {
+    mode: 'FTP_WIFI',
+    title: 'Wi-Fi / Hotspot FTP',
+    subtitle: 'Direct auto-transfer for Sony, Canon, Nikon & Fuji',
+    tag: 'WIRELESS',
+  },
+  {
     mode: 'HOT_FOLDER',
     title: 'Storage Hot-Folder',
     subtitle: 'Import from SD Card reader or DCIM folder',
     tag: 'STORAGE',
-  },
-  {
-    mode: 'MOCK_SIMULATOR',
-    title: 'Camera Simulator',
-    subtitle: 'Burst testing with Sony A7 IV & Canon R5 EXIF',
-    tag: 'TESTING',
   },
 ];
 
@@ -151,3 +145,4 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
 });
+

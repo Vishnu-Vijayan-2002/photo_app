@@ -68,3 +68,4 @@ class CameraFtpServer(
 
     fun isServerRunning(): Boolean = isRunning
 }
+

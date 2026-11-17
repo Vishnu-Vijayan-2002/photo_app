@@ -50,6 +50,9 @@ export class UploadQueueRepository {
 
   async getPendingTasks(limit = 10): Promise<UploadTask[]> {
     const db = dbManager.getDriver();
+    try {
+      await db.executeSql("UPDATE upload_queue SET status = 'PENDING' WHERE status = '0' OR status = 0");
+    } catch {}
     const res = await db.executeSql(
       'SELECT * FROM upload_queue WHERE status = ? OR status = ? ORDER BY created_at ASC LIMIT ?',
       ['PENDING', 'UPLOADING', limit]
@@ -93,6 +96,14 @@ export class UploadQueueRepository {
       Date.now(),
       id,
     ]);
+  }
+
+  async updateTaskPending(id: string, progressBytes: number, retryCount: number): Promise<void> {
+    const db = dbManager.getDriver();
+    await db.executeSql(
+      'UPDATE upload_queue SET status = ?, progress_bytes = ?, retry_count = ?, updated_at = ? WHERE id = ?',
+      ['PENDING', progressBytes, retryCount, Date.now(), id]
+    );
   }
 
   async markCompleted(id: string, driveFileId: string): Promise<void> {
@@ -160,6 +171,10 @@ export class UploadQueueRepository {
     const totalBytes = row.file_size || 0;
     const progressBytes = row.progress_bytes || 0;
     const progressPercentage = totalBytes > 0 ? Math.min(100, Math.round((progressBytes / totalBytes) * 100)) : 0;
+    let status = row.status as UploadStatus;
+    if (status === ('0' as any) || (status as any) === 0 || !status) {
+      status = 'PENDING';
+    }
 
     return {
       id: row.id,
@@ -171,7 +186,7 @@ export class UploadQueueRepository {
       mimeType: row.mime_type,
       driveFolderId: row.drive_folder_id,
       driveFileId: row.drive_file_id || undefined,
-      status: row.status as UploadStatus,
+      status,
       progressBytes,
       progressPercentage,
       retryCount: row.retry_count || 0,
@@ -186,3 +201,4 @@ export class UploadQueueRepository {
 }
 
 export const uploadQueueRepo = new UploadQueueRepository();
+

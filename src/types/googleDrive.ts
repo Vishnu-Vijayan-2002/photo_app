@@ -38,3 +38,4 @@ export interface DriveUploadProgress {
   percentage: number;
   speedBytesPerSecond: number;
 }
+

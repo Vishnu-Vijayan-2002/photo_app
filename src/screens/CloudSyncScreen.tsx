@@ -1,98 +1,128 @@
 /**
  * AeroShutter Cloud Sync Screen
  * Google Drive integration, active queue monitoring, upload speedometer, and retry controls.
+ * Supports connecting real Google accounts and 1-tap switching between upload modes.
  */
 
-import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { useUpload } from '../context/UploadContext';
 import { Header } from '../components/common/Header';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
+import { GoogleAvatar } from '../components/common/GoogleAvatar';
 import { UploadSpeedometer } from '../components/upload/UploadSpeedometer';
 import { StorageQuotaBar } from '../components/upload/StorageQuotaBar';
 import { UploadQueueList } from '../components/upload/UploadQueueList';
-import { googleAuthService } from '../services/cloud/GoogleAuthService';
+import { UploadModeSelector } from '../components/upload/UploadModeSelector';
+import { GoogleAccountModal } from '../components/upload/GoogleAccountModal';
+import { PresetConfigModal } from '../components/upload/PresetConfigModal';
 
 export const CloudSyncScreen: React.FC = () => {
   const { theme } = useApp();
-  const { queueState, pauseUploads, resumeUploads, retryAllFailed } = useUpload();
-  const account = googleAuthService.getCurrentAccount();
+  const { queueState, pauseUploads, resumeUploads, retryAllFailed, account } = useUpload();
+  const [accountModalVisible, setAccountModalVisible] = useState(false);
+  const [presetModalVisible, setPresetModalVisible] = useState(false);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Header
         title="Cloud Sync"
         subtitle="Automatic Google Drive Resumable Upload"
+        rightAction={
+          <Button
+            title={account ? 'Account' : '+ Connect'}
+            variant={account ? 'secondary' : 'primary'}
+            size="sm"
+            onPress={() => setAccountModalVisible(true)}
+          />
+        }
       />
 
-      <View style={styles.topSection}>
-        {/* Google Drive Account Card */}
-        <Card style={styles.accountCard}>
-          <View style={styles.accountRow}>
-            {account?.photoUrl ? (
-              <Image source={{ uri: account.photoUrl }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatarPlaceholder, { backgroundColor: theme.colors.surfaceActive }]}>
-                <Text style={styles.avatarLetter}>G</Text>
+      <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
+        <View style={styles.topSection}>
+          {/* Google Drive Account Card (Clickable to manage / connect) */}
+          <TouchableOpacity activeOpacity={0.8} onPress={() => setAccountModalVisible(true)}>
+            <Card style={styles.accountCard}>
+              <View style={styles.accountRow}>
+                <GoogleAvatar
+                  photoUrl={account?.photoUrl}
+                  displayName={account?.displayName}
+                  size={46}
+                />
+
+                <View style={styles.accountDetails}>
+                  <Text style={[styles.accountName, { color: theme.colors.textPrimary }]}>
+                    {account?.displayName || 'Google Drive'}
+                  </Text>
+                  <Text style={[styles.accountEmail, { color: theme.colors.textSecondary }]}>
+                    {account?.email || 'Tap to connect your Google Account'}
+                  </Text>
+                </View>
+
+                <Badge
+                  label={account ? 'CONNECTED' : 'DISCONNECTED'}
+                  variant={account ? 'success' : 'secondary'}
+                  size="sm"
+                />
               </View>
-            )}
+            </Card>
+          </TouchableOpacity>
 
-            <View style={styles.accountDetails}>
-              <Text style={[styles.accountName, { color: theme.colors.textPrimary }]}>
-                {account?.displayName || 'Google Drive'}
-              </Text>
-              <Text style={[styles.accountEmail, { color: theme.colors.textSecondary }]}>
-                {account?.email || 'Not connected'}
-              </Text>
-            </View>
+          {/* 3 Upload Modes (Auto-Upload, Manual Select, Preset Mode) */}
+          <UploadModeSelector onOpenPresetConfig={() => setPresetModalVisible(true)} />
 
-            <Badge
-              label={account ? 'CONNECTED' : 'OFFLINE'}
-              variant={account ? 'success' : 'secondary'}
-              size="sm"
-            />
-          </View>
-        </Card>
+          {/* Live Upload Speedometer */}
+          <UploadSpeedometer />
 
-        {/* Live Upload Speedometer */}
-        <UploadSpeedometer />
+          {/* Storage Quota Bar */}
+          <StorageQuotaBar />
 
-        {/* Storage Quota Bar */}
-        <StorageQuotaBar />
-
-        {/* Controls Bar */}
-        <View style={styles.controlsRow}>
-          <Button
-            title={queueState.isPaused ? '▶ Resume Queue' : '⏸ Pause Queue'}
-            variant={queueState.isPaused ? 'primary' : 'secondary'}
-            size="sm"
-            onPress={queueState.isPaused ? resumeUploads : pauseUploads}
-            style={styles.controlBtn}
-          />
-          {queueState.totalFailedCount > 0 ? (
+          {/* Controls Bar */}
+          <View style={styles.controlsRow}>
             <Button
-              title={`Retry ${queueState.totalFailedCount} Failed`}
-              variant="danger"
+              title={queueState.isPaused ? 'Resume Queue' : 'Pause Queue'}
+              variant={queueState.isPaused ? 'primary' : 'secondary'}
               size="sm"
-              onPress={retryAllFailed}
+              onPress={queueState.isPaused ? resumeUploads : pauseUploads}
               style={styles.controlBtn}
             />
-          ) : null}
+            {queueState.totalFailedCount > 0 ? (
+              <Button
+                title={`Retry ${queueState.totalFailedCount} Failed`}
+                variant="danger"
+                size="sm"
+                onPress={retryAllFailed}
+                style={styles.controlBtn}
+              />
+            ) : null}
+          </View>
         </View>
-      </View>
 
-      <View style={styles.queueHeaderRow}>
-        <Text style={[styles.queueHeaderTitle, { color: theme.colors.textMuted }]}>
-          ACTIVE UPLOAD QUEUE ({queueState.tasks.length})
-        </Text>
-      </View>
+        <View style={styles.queueHeaderRow}>
+          <Text style={[styles.queueHeaderTitle, { color: theme.colors.textMuted }]}>
+            ACTIVE UPLOAD QUEUE ({queueState.tasks.length})
+          </Text>
+        </View>
 
-      <View style={styles.queueContainer}>
-        <UploadQueueList />
-      </View>
+        <View style={styles.queueContainer}>
+          <UploadQueueList />
+        </View>
+      </ScrollView>
+
+      {/* Google Account Connection Modal */}
+      <GoogleAccountModal
+        visible={accountModalVisible}
+        onClose={() => setAccountModalVisible(false)}
+      />
+
+      {/* Preset Mode Configuration Modal */}
+      <PresetConfigModal
+        visible={presetModalVisible}
+        onClose={() => setPresetModalVisible(false)}
+      />
     </View>
   );
 };
@@ -101,67 +131,71 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  scroll: {
+    flex: 1,
+  },
   topSection: {
-    paddingBottom: 4,
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
   accountCard: {
-    marginHorizontal: 16,
-    marginVertical: 6,
     padding: 12,
+    marginBottom: 14,
   },
   accountRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginRight: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
   },
   avatarPlaceholder: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
     alignItems: 'center',
-    marginRight: 10,
+    justifyContent: 'center',
   },
   avatarLetter: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#00D1FF',
   },
   accountDetails: {
     flex: 1,
   },
   accountName: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
   accountEmail: {
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
   },
   controlsRow: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    marginVertical: 4,
+    gap: 8,
+    marginTop: 4,
+    marginBottom: 16,
   },
   controlBtn: {
-    marginRight: 8,
+    flex: 1,
   },
   queueHeaderRow: {
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 4,
+    marginBottom: 8,
   },
   queueHeaderTitle: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
+    fontSize: 11,
+    letterSpacing: 1,
+    fontWeight: '700',
   },
   queueContainer: {
-    flex: 1,
+    paddingHorizontal: 16,
+    paddingBottom: 40,
+    minHeight: 200,
   },
 });

@@ -72,15 +72,6 @@ export const UsbConnectionCard: React.FC = () => {
           ))}
         </View>
       )}
-
-      <View style={styles.actionsRow}>
-        <Button
-          title="Trigger Shutter (Remote)"
-          variant="primary"
-          onPress={triggerShutter}
-          style={styles.shutterBtn}
-        />
-      </View>
     </Card>
   );
 };
@@ -148,3 +139,4 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 });
+

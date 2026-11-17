@@ -65,3 +65,4 @@ Content-Length: 0
 Content-Range: bytes */42123980
 ```
 Google responds with the exact received range: `Range: bytes=0-15728639`. AeroShutter immediately resumes from byte `15728640` with zero data loss!
+

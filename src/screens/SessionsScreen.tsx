@@ -11,6 +11,7 @@ import { Header } from '../components/common/Header';
 import { Button } from '../components/common/Button';
 import { SessionCard } from '../components/session/SessionCard';
 import { CreateSessionModal } from '../components/session/CreateSessionModal';
+import { Icon } from '../components/common/Icon';
 
 export const SessionsScreen: React.FC = () => {
   const { theme } = useApp();
@@ -34,7 +35,9 @@ export const SessionsScreen: React.FC = () => {
 
       {sessions.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={[styles.emptyIcon, { color: theme.colors.textMuted }]}>📁</Text>
+          <View style={{ marginBottom: 14 }}>
+            <Icon name="sessions" size={36} color={theme.colors.textMuted} />
+          </View>
           <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>No Sessions Yet</Text>
           <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
             Create your first session to organize tethered photos and automatic cloud folders.
@@ -101,3 +104,4 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
 });
+

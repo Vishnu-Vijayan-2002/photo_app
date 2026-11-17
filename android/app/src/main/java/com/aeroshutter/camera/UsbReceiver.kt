@@ -36,3 +36,4 @@ class UsbReceiver(private val callback: UsbEventCallback) : BroadcastReceiver() 
         const val ACTION_USB_PERMISSION = "com.aeroshutter.USB_PERMISSION"
     }
 }
+

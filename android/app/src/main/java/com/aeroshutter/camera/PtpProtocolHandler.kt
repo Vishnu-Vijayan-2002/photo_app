@@ -27,6 +27,11 @@ object PtpProtocolHandler {
     const val PTP_OP_GET_THUMB: Short = 0x100A.toShort()
     const val PTP_OP_DELETE_OBJECT: Short = 0x100B.toShort()
     const val PTP_OP_INITIATE_CAPTURE: Short = 0x100E.toShort()
+    const val PTP_OP_GET_DEVICE_PROP_DESC: Short = 0x1014.toShort()
+    const val PTP_OP_GET_DEVICE_PROP_VALUE: Short = 0x1015.toShort()
+
+    // Device Property Codes
+    const val PTP_PROP_BATTERY_LEVEL: Short = 0x5001.toShort()
 
     // Response Codes
     const val PTP_RC_OK: Short = 0x2001.toShort()
@@ -91,3 +96,4 @@ object PtpProtocolHandler {
         val isSuccess: Boolean get() = code == PTP_RC_OK
     }
 }
+

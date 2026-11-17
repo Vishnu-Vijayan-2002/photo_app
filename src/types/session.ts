@@ -28,3 +28,4 @@ export interface SessionStats {
   totalPhotosUploaded: number;
   totalStorageBytes: number;
 }
+

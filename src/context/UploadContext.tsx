@@ -1,19 +1,41 @@
 /**
  * AeroShutter Upload Context
- * Provides real-time upload queue telemetry, pause/resume, and retry controls.
+ * Provides real-time upload queue telemetry, flexible mode switching,
+ * Google Account management, and manual batch upload triggers.
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UploadQueueState, UploadTask } from '../types/upload';
+import { UploadQueueState, UploadMode, UploadPresetConfig, UploadTask } from '../types/upload';
+import { Photo } from '../types/photo';
+import { GoogleDriveAccount } from '../types/googleDrive';
 import { uploadQueueManager } from '../services/queue/UploadQueueManager';
+import { googleAuthService } from '../services/cloud/GoogleAuthService';
 
 interface UploadContextType {
   queueState: UploadQueueState;
+  currentMode: UploadMode;
+  setUploadMode: (mode: UploadMode) => void;
+  presetConfig: UploadPresetConfig;
+  updatePresetConfig: (config: Partial<UploadPresetConfig>) => void;
+  enqueueSelectedPhotos: (photos: Photo[]) => Promise<UploadTask[]>;
   pauseUploads: () => void;
   resumeUploads: () => void;
   retryAllFailed: () => Promise<void>;
   retryTask: (taskId: string) => Promise<void>;
+  account: GoogleDriveAccount | null;
+  connectAccountWithToken: (token: string, refreshToken?: string) => Promise<GoogleDriveAccount>;
+  signOutAccount: () => Promise<void>;
 }
+
+const initialPresetConfig: UploadPresetConfig = {
+  targetFolderPattern: 'SESSION_NAME',
+  transferWorkflow: 'DUAL_TRANSFER',
+  selectedPresetId: 'portra-400',
+  wifiOnly: false,
+  maxConcurrency: 2,
+  autoCreateSessionFolder: true,
+  deleteLocalAfterUpload: false,
+};
 
 const initialQueueState: UploadQueueState = {
   tasks: [],
@@ -29,22 +51,44 @@ const initialQueueState: UploadQueueState = {
   totalPendingCount: 0,
   totalCompletedCount: 0,
   totalFailedCount: 0,
+  currentMode: 'AUTO_CONTINUOUS',
+  presetConfig: initialPresetConfig,
 };
 
 const UploadContext = createContext<UploadContextType | undefined>(undefined);
 
 export const UploadProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [queueState, setQueueState] = useState<UploadQueueState>(initialQueueState);
+  const [account, setAccount] = useState<GoogleDriveAccount | null>(googleAuthService.getCurrentAccount());
 
   useEffect(() => {
     uploadQueueManager.getState().then((s) => setQueueState(s));
 
-    const unsub = uploadQueueManager.subscribe((state) => {
+    const unsubQueue = uploadQueueManager.subscribe((state) => {
       setQueueState(state);
     });
 
-    return unsub;
+    const unsubAuth = googleAuthService.subscribe((acc) => {
+      setAccount(acc);
+    });
+
+    return () => {
+      unsubQueue();
+      unsubAuth();
+    };
   }, []);
+
+  const setUploadMode = (mode: UploadMode) => {
+    uploadQueueManager.setUploadMode(mode);
+  };
+
+  const updatePresetConfig = (config: Partial<UploadPresetConfig>) => {
+    uploadQueueManager.updatePresetConfig(config);
+  };
+
+  const enqueueSelectedPhotos = async (photos: Photo[]): Promise<UploadTask[]> => {
+    return await uploadQueueManager.enqueueSelectedPhotos(photos);
+  };
 
   const pauseUploads = () => {
     uploadQueueManager.pause();
@@ -62,14 +106,30 @@ export const UploadProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     await uploadQueueManager.retryTask(taskId);
   };
 
+  const connectAccountWithToken = async (token: string, refreshToken?: string): Promise<GoogleDriveAccount> => {
+    return await googleAuthService.connectWithToken(token, refreshToken);
+  };
+
+  const signOutAccount = async (): Promise<void> => {
+    await googleAuthService.signOut();
+  };
+
   return (
     <UploadContext.Provider
       value={{
         queueState,
+        currentMode: queueState.currentMode,
+        setUploadMode,
+        presetConfig: queueState.presetConfig,
+        updatePresetConfig,
+        enqueueSelectedPhotos,
         pauseUploads,
         resumeUploads,
         retryAllFailed,
         retryTask,
+        account,
+        connectAccountWithToken,
+        signOutAccount,
       }}
     >
       {children}

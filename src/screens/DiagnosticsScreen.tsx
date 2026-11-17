@@ -11,9 +11,9 @@ import { Header } from '../components/common/Header';
 import { Card } from '../components/common/Card';
 import { Badge } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
-import { ftpServerService } from '../../src/services/camera/FtpServerService';
-import { networkMonitor } from '../../src/services/queue/NetworkMonitor';
-import { googleAuthService } from '../../src/services/cloud/GoogleAuthService';
+import { ftpServerService } from '../services/camera/FtpServerService';
+import { networkMonitor } from '../services/queue/NetworkMonitor';
+import { googleAuthService } from '../services/cloud/GoogleAuthService';
 
 export const DiagnosticsScreen: React.FC = () => {
   const { theme } = useApp();
@@ -203,3 +203,4 @@ const styles = StyleSheet.create({
     margin: 4,
   },
 });
+

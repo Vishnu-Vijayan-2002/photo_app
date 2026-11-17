@@ -20,3 +20,4 @@ export const getTheme = (isDark = true): AppTheme => ({
   spacing,
   borderRadius,
 });
+

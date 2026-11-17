@@ -16,6 +16,14 @@ export const UploadQueueList: React.FC = () => {
     const isUploading = item.status === 'UPLOADING';
     const isFailed = item.status === 'FAILED';
 
+    const getBadgeLabel = () => {
+      if (item.status === 'COMPLETED') return 'SYNCED';
+      if (item.status === 'UPLOADING') return `${item.progressPercentage || 0}%`;
+      if (item.status === 'PENDING') return 'QUEUED';
+      if (item.status === 'PAUSED') return 'PAUSED';
+      return 'FAILED';
+    };
+
     return (
       <View style={[styles.taskItem, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
         <View style={styles.topRow}>
@@ -29,7 +37,7 @@ export const UploadQueueList: React.FC = () => {
           </View>
           <View style={styles.statusCol}>
             <Badge
-              label={item.status}
+              label={getBadgeLabel()}
               variant={
                 item.status === 'COMPLETED'
                   ? 'success'
@@ -152,3 +160,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 });
+

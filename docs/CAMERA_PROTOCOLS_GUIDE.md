@@ -61,3 +61,4 @@ For high-speed studio workflows, USB-C tethering utilizes the **Picture Transfer
 - **Nikon:** Connect cable → Camera switches to PTP MTP Mass Storage automatically.
 
 When plugged in, Android prompts: *"Allow AeroShutter to access this USB device?"* Tap **Always Allow**. AeroShutter establishes a PTP session `0x1002`, listens for event code `0x4002` (`ObjectAdded`), and retrieves incoming photos with zero latency.
+

@@ -15,8 +15,12 @@ import java.io.FileOutputStream
 class UsbTetherModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext), UsbReceiver.UsbEventCallback {
 
-    private val usbManager: UsbManager =
-        reactContext.getSystemService(Context.USB_SERVICE) as UsbManager
+    private val usbManager: UsbManager?
+        get() = try {
+            reactContext.getSystemService(Context.USB_SERVICE) as? UsbManager
+        } catch (e: Exception) {
+            null
+        }
 
     private var activeDevice: UsbDevice? = null
     private var connection: UsbDeviceConnection? = null
@@ -32,16 +36,23 @@ class UsbTetherModule(private val reactContext: ReactApplicationContext) :
     private var permissionPromise: Promise? = null
 
     init {
-        val receiver = UsbReceiver(this)
-        val filter = IntentFilter().apply {
-            addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
-            addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
-            addAction(UsbReceiver.ACTION_USB_PERMISSION)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            reactContext.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            reactContext.registerReceiver(receiver, filter)
+        // Safe deferred initialization - never block app launch
+        scope.launch {
+            try {
+                val receiver = UsbReceiver(this@UsbTetherModule)
+                val filter = IntentFilter().apply {
+                    addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+                    addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+                    addAction(UsbReceiver.ACTION_USB_PERMISSION)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    reactContext.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                } else {
+                    reactContext.registerReceiver(receiver, filter)
+                }
+            } catch (e: Exception) {
+                // Silently ignore if broadcast receiver registration fails
+            }
         }
     }
 
@@ -50,18 +61,33 @@ class UsbTetherModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun getConnectedDevices(promise: Promise) {
         val result = Arguments.createArray()
-        val deviceList = usbManager.deviceList
+        val mgr = usbManager ?: run {
+            promise.resolve(result)
+            return
+        }
+        val deviceList = mgr.deviceList
 
         for ((_, device) in deviceList) {
+            val vendorBrand = when (device.vendorId) {
+                0x054C -> "Sony"
+                0x04A9 -> "Canon"
+                0x04B0 -> "Nikon"
+                0x04CB -> "Fujifilm"
+                0x057B -> "OM System"
+                0x04DA -> "Panasonic"
+                0x090C -> "Leica"
+                else -> device.manufacturerName ?: "Generic"
+            }
             val map = Arguments.createMap().apply {
                 putInt("deviceId", device.deviceId)
                 putInt("vendorId", device.vendorId)
                 putInt("productId", device.productId)
                 putString("deviceName", device.deviceName)
-                putString("manufacturerName", device.manufacturerName ?: "Unknown")
-                putString("productName", device.productName ?: "Camera Device")
+                putString("manufacturerName", device.manufacturerName ?: vendorBrand)
+                putString("productName", device.productName ?: "$vendorBrand Camera")
+                putString("brand", vendorBrand)
                 putString("serialNumber", device.serialNumber ?: "")
-                putBoolean("hasPermission", usbManager.hasPermission(device))
+                putBoolean("hasPermission", mgr.hasPermission(device))
             }
             result.pushMap(map)
         }
@@ -70,13 +96,17 @@ class UsbTetherModule(private val reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun requestPermission(deviceId: Int, promise: Promise) {
-        val device = usbManager.deviceList.values.find { it.deviceId == deviceId }
+        val mgr = usbManager ?: run {
+            promise.reject("UNAVAILABLE", "USB Manager unavailable")
+            return
+        }
+        val device = mgr.deviceList.values.find { it.deviceId == deviceId }
         if (device == null) {
             promise.reject("DEVICE_NOT_FOUND", "USB Device with ID $deviceId not found")
             return
         }
 
-        if (usbManager.hasPermission(device)) {
+        if (mgr.hasPermission(device)) {
             promise.resolve(true)
             return
         }
@@ -89,25 +119,29 @@ class UsbTetherModule(private val reactContext: ReactApplicationContext) :
             Intent(UsbReceiver.ACTION_USB_PERMISSION),
             flags
         )
-        usbManager.requestPermission(device, intent)
+        mgr.requestPermission(device, intent)
     }
 
     @ReactMethod
     fun openSession(deviceId: Int, promise: Promise) {
-        val device = usbManager.deviceList.values.find { it.deviceId == deviceId }
+        val mgr = usbManager ?: run {
+            promise.reject("UNAVAILABLE", "USB Manager unavailable")
+            return
+        }
+        val device = mgr.deviceList.values.find { it.deviceId == deviceId }
         if (device == null) {
             promise.reject("DEVICE_NOT_FOUND", "USB Device not found")
             return
         }
 
-        if (!usbManager.hasPermission(device)) {
+        if (!mgr.hasPermission(device)) {
             promise.reject("PERMISSION_DENIED", "USB Permission not granted for camera")
             return
         }
 
         scope.launch {
             try {
-                val conn = usbManager.openDevice(device) ?: throw Exception("Failed to open USB device connection")
+                val conn = mgr.openDevice(device) ?: throw Exception("Failed to open USB device connection")
                 connection = conn
                 activeDevice = device
 
@@ -186,6 +220,47 @@ class UsbTetherModule(private val reactContext: ReactApplicationContext) :
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     promise.reject("CAPTURE_ERROR", e.message)
+                }
+            }
+        }
+    }
+
+    @ReactMethod
+    fun getBatteryLevel(promise: Promise) {
+        scope.launch {
+            try {
+                val conn = connection
+                val epOut = endpointOut
+                val epIn = endpointIn
+                if (conn == null || epOut == null || epIn == null) {
+                    withContext(Dispatchers.Main) {
+                        promise.resolve(null)
+                    }
+                    return@launch
+                }
+
+                val cmd = PtpProtocolHandler.createCommandPacket(
+                    PtpProtocolHandler.PTP_OP_GET_DEVICE_PROP_VALUE,
+                    transactionId++,
+                    intArrayOf(PtpProtocolHandler.PTP_PROP_BATTERY_LEVEL.toInt())
+                )
+                conn.bulkTransfer(epOut, cmd, cmd.size, 1000)
+
+                val dataBuffer = ByteArray(512)
+                val read = conn.bulkTransfer(epIn, dataBuffer, dataBuffer.size, 1000)
+                if (read >= 13) {
+                    val battery = dataBuffer[12].toInt() and 0xFF
+                    withContext(Dispatchers.Main) {
+                        promise.resolve(battery)
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        promise.resolve(null)
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    promise.resolve(null)
                 }
             }
         }
@@ -273,6 +348,16 @@ class UsbTetherModule(private val reactContext: ReactApplicationContext) :
             .emit(eventName, params)
     }
 
+    @ReactMethod
+    fun addListener(eventName: String) {
+        // Required for RN NativeEventEmitter
+    }
+
+    @ReactMethod
+    fun removeListeners(count: Int) {
+        // Required for RN NativeEventEmitter
+    }
+
     override fun onDeviceAttached(device: UsbDevice) {
         val map = Arguments.createMap().apply {
             putInt("deviceId", device.deviceId)
@@ -296,3 +381,4 @@ class UsbTetherModule(private val reactContext: ReactApplicationContext) :
         permissionPromise = null
     }
 }
+

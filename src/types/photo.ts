@@ -28,3 +28,4 @@ export interface PhotoFilter {
   uploadStatus?: 'ALL' | 'PENDING' | 'UPLOADING' | 'COMPLETED' | 'FAILED';
   searchQuery?: string;
 }
+

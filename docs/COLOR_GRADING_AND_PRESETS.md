@@ -32,3 +32,4 @@ AeroShutter integrates an on-device color grading engine inspired by Adobe Light
 
 5. **Hold-to-Compare Before/After:**
    - Instant visual comparison button allowing photographers to toggle between the untouched raw capture and the graded version.
+

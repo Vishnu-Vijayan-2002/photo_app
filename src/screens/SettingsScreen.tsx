@@ -144,7 +144,7 @@ export const SettingsScreen: React.FC = () => {
           </View>
 
           <View style={[styles.legalBox, { backgroundColor: theme.colors.surfaceActive }]}>
-            <Text style={[styles.legalTitle, { color: theme.colors.textPrimary }]}>AeroShutter v1.0.0</Text>
+            <Text style={[styles.legalTitle, { color: theme.colors.textPrimary }]}>TETHERFLOW v1.0.0</Text>
             <Text style={[styles.legalText, { color: theme.colors.textMuted }]}>
               Built with React Native, TypeScript, Android Kotlin & iOS Swift. Clean-room independent
               implementation engineered for professional photographers.

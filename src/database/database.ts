@@ -9,6 +9,9 @@ import {
   CREATE_TABLE_UPLOAD_QUEUE,
   CREATE_INDEXES,
 } from './schema';
+import { NativeModules, Platform } from 'react-native';
+
+const { NativeDatabaseModule } = NativeModules;
 
 export interface DatabaseDriver {
   executeSql(query: string, params?: any[]): Promise<{ rows: any[]; rowsAffected: number; insertId?: number }>;
@@ -17,8 +20,34 @@ export interface DatabaseDriver {
 }
 
 /**
+ * Production-Ready Persistent Android SQLite Engine
+ * Connects directly to native SQLiteOpenHelper (tetherflow.db) on disk.
+ */
+class NativeSQLiteDriver implements DatabaseDriver {
+  async executeSql(query: string, params: any[] = []): Promise<{ rows: any[]; rowsAffected: number; insertId?: number }> {
+    if (NativeDatabaseModule && typeof NativeDatabaseModule.executeSql === 'function') {
+      const res = await NativeDatabaseModule.executeSql(query, params);
+      return {
+        rows: res.rows || [],
+        rowsAffected: res.rowsAffected || 0,
+        insertId: res.insertId,
+      };
+    }
+    throw new Error('NativeDatabaseModule unavailable');
+  }
+
+  async transaction<T>(action: (tx: DatabaseDriver) => Promise<T>): Promise<T> {
+    return await action(this);
+  }
+
+  async close(): Promise<void> {
+    // Managed natively
+  }
+}
+
+/**
  * Resilient In-Memory & File-compatible SQLite Engine implementation
- * Guarantees zero crashing on test environments, simulated devices, and native runtimes.
+ * Used in unit tests and mock environments.
  */
 class InMemorySQLiteDriver implements DatabaseDriver {
   private tables: Map<string, Map<string, any>> = new Map([
@@ -173,6 +202,8 @@ class InMemorySQLiteDriver implements DatabaseDriver {
         let list = Array.from(this.tables.get('upload_queue')!.values());
         if (trimmed.includes('WHERE id = ?')) {
           list = list.filter((item) => item.id === params[0]);
+        } else if (trimmed.includes('WHERE status = ? OR status = ?')) {
+          list = list.filter((item) => item.status === params[0] || item.status === params[1]);
         } else if (trimmed.includes('WHERE status = ?')) {
           list = list.filter((item) => item.status === params[0]);
         } else if (trimmed.includes('WHERE photo_id = ?')) {
@@ -180,7 +211,17 @@ class InMemorySQLiteDriver implements DatabaseDriver {
         } else if (trimmed.includes('WHERE session_id = ?')) {
           list = list.filter((item) => item.session_id === params[0]);
         }
-        list.sort((a, b) => a.created_at - b.created_at);
+        if (trimmed.includes('ORDER BY created_at DESC')) {
+          list.sort((a, b) => b.created_at - a.created_at);
+        } else {
+          list.sort((a, b) => a.created_at - b.created_at);
+        }
+        if (trimmed.includes('LIMIT ?')) {
+          const limitVal = params[params.length - 1];
+          if (typeof limitVal === 'number') {
+            list = list.slice(0, limitVal);
+          }
+        }
         return { rows: list, rowsAffected: 0 };
       }
     }
@@ -196,27 +237,78 @@ class InMemorySQLiteDriver implements DatabaseDriver {
         if (trimmed.includes('is_active = 1')) {
           session.is_active = 1;
         }
+        if (trimmed.includes('drive_folder_id = ?')) {
+          session.drive_folder_id = params[0];
+          session.drive_folder_url = params[1];
+        }
         session.updated_at = Date.now();
         return { rows: [], rowsAffected: 1 };
       }
       return { rows: [], rowsAffected: 0 };
     }
 
-    if (trimmed.startsWith('UPDATE upload_queue')) {
+    if (trimmed.startsWith('UPDATE photos')) {
       const targetId = params[params.length - 1];
-      const task = this.tables.get('upload_queue')!.get(targetId);
-      if (task) {
-        if (trimmed.includes('status = ?')) {
-          task.status = params[0];
+      const photo = this.tables.get('photos')!.get(targetId);
+      if (photo) {
+        if (trimmed.includes('thumbnail_path = ?')) {
+          photo.thumbnail_path = params[0];
         }
-        if (trimmed.includes('progress_bytes = ?')) {
-          task.progress_bytes = params[0];
-        }
-        if (trimmed.includes('drive_file_id = ?')) {
-          task.drive_file_id = params[1];
-        }
-        task.updated_at = Date.now();
         return { rows: [], rowsAffected: 1 };
+      }
+      return { rows: [], rowsAffected: 0 };
+    }
+
+    if (trimmed.startsWith('UPDATE upload_queue')) {
+      const setMatch = trimmed.match(/SET\s+(.+?)(?:\s+WHERE\s+(.+))?$/i);
+      if (setMatch) {
+        const setClause = setMatch[1];
+        const whereClause = setMatch[2] || '';
+        const assignments = setClause.split(',').map((s) => s.trim());
+
+        let targetTasks: any[] = [];
+        let whereParams = [...params];
+
+        // Determine targets based on WHERE clause
+        if (whereClause.includes('id = ?')) {
+          const id = whereParams[whereParams.length - 1];
+          const found = this.tables.get('upload_queue')!.get(id);
+          if (found) targetTasks.push(found);
+        } else if (whereClause.includes('status = ? OR status = ?')) {
+          const s1 = whereParams[whereParams.length - 2];
+          const s2 = whereParams[whereParams.length - 1];
+          targetTasks = Array.from(this.tables.get('upload_queue')!.values()).filter(
+            (t) => t.status === s1 || t.status === s2
+          );
+        } else if (whereClause.includes('status = ?')) {
+          const s = whereParams[whereParams.length - 1];
+          targetTasks = Array.from(this.tables.get('upload_queue')!.values()).filter((t) => t.status === s);
+        } else {
+          targetTasks = Array.from(this.tables.get('upload_queue')!.values());
+        }
+
+        // Apply SET assignments
+        let paramIdx = 0;
+        const updates: Record<string, any> = {};
+        for (const assign of assignments) {
+          const [col, expr] = assign.split('=').map((s) => s.trim());
+          if (expr === '?') {
+            updates[col] = params[paramIdx++];
+          } else if (expr.toUpperCase() === 'NULL') {
+            updates[col] = null;
+          } else if (!isNaN(Number(expr))) {
+            updates[col] = Number(expr);
+          } else if ((expr.startsWith("'") && expr.endsWith("'")) || (expr.startsWith('"') && expr.endsWith('"'))) {
+            updates[col] = expr.slice(1, -1);
+          }
+        }
+
+        for (const task of targetTasks) {
+          Object.assign(task, updates);
+          task.updated_at = updates.updated_at || Date.now();
+        }
+
+        return { rows: [], rowsAffected: targetTasks.length };
       }
       return { rows: [], rowsAffected: 0 };
     }
@@ -265,7 +357,11 @@ class DatabaseManager {
   private initialized = false;
 
   private constructor() {
-    this.driver = new InMemorySQLiteDriver();
+    if (Platform.OS === 'android' && NativeDatabaseModule) {
+      this.driver = new NativeSQLiteDriver();
+    } else {
+      this.driver = new InMemorySQLiteDriver();
+    }
   }
 
   public static getInstance(): DatabaseManager {
@@ -303,3 +399,4 @@ class DatabaseManager {
 }
 
 export const dbManager = DatabaseManager.getInstance();
+

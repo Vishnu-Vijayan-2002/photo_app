@@ -74,3 +74,4 @@ export const CREATE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_queue_photo_id ON upload_queue(photo_id);',
   'CREATE INDEX IF NOT EXISTS idx_queue_session_id ON upload_queue(session_id);',
 ];
+

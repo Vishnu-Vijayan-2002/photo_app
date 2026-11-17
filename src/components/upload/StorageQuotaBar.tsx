@@ -1,19 +1,19 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useApp } from '../../context/AppContext';
-import { googleAuthService } from '../../services/cloud/GoogleAuthService';
+import { useUpload } from '../../context/UploadContext';
 import { ProgressBar } from '../common/ProgressBar';
 import { photoStorageManager } from '../../services/storage/PhotoStorageManager';
 
 export const StorageQuotaBar: React.FC = () => {
   const { theme } = useApp();
-  const account = googleAuthService.getCurrentAccount();
+  const { account } = useUpload();
 
   if (!account || !account.storageQuota) return null;
 
-  const used = account.storageQuota.usageBytes;
-  const limit = account.storageQuota.limitBytes;
-  const percentage = Math.round((used / limit) * 100);
+  const used = account.storageQuota.usageBytes || 0;
+  const limit = account.storageQuota.limitBytes || 16106127360; // 15 GB Google Drive standard quota
+  const percentage = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -56,3 +56,4 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
   },
 });
+

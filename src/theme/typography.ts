@@ -33,3 +33,4 @@ export const typography = {
     black: '900' as const,
   },
 };
+

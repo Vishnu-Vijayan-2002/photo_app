@@ -101,3 +101,4 @@ class CameraFtpServerModule: RCTEventEmitter {
     return address
   }
 }
+
